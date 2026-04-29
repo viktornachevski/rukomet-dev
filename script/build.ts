@@ -1,9 +1,7 @@
 import { build as esbuild } from "esbuild";
 import { build as viteBuild } from "vite";
-import { rm, readFile } from "fs/promises";
+import { rm, readFile, copyFile } from "fs/promises";
 
-// server deps to bundle to reduce openat(2) syscalls
-// which helps cold start times
 const allowlist = [
   "@google/generative-ai",
   "axios",
@@ -59,6 +57,24 @@ async function buildAll() {
     external: externals,
     logLevel: "info",
   });
+
+  console.log("building cloudflare worker...");
+  await esbuild({
+    entryPoints: ["server/worker.ts"],
+    platform: "node",
+    bundle: true,
+    format: "esm",
+    outfile: "dist/public/_worker.js",
+    define: {
+      "process.env.NODE_ENV": '"production"',
+    },
+    minify: true,
+    external: ["node:*"],
+    logLevel: "info",
+  });
+
+  console.log("copying wrangler.jsonc...");
+  await copyFile("wrangler.jsonc", "dist/public/wrangler.jsonc");
 }
 
 buildAll().catch((err) => {
